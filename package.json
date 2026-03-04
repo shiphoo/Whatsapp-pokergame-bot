@@ -1,0 +1,23 @@
+{
+	"name": "card-game-engine",
+	"version": "1.0.0",
+	"main": "index.js",
+	"scripts": {
+		"start": " node ./src/index.js",
+		"postinstall": "npx puppeteer browsers install chrome"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"description": "",
+	"dependencies": {
+		"express": "^5.2.1",
+		"path": "^0.12.7",
+		"qrcode": "^1.5.4",
+		"qrcode-terminal": "^0.12.0",
+		"whatsapp-web.js": "^1.34.6"
+	},
+	"devDependencies": {
+		"nodemon": "^3.1.14"
+	}
+}
