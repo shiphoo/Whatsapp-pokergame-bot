@@ -4,32 +4,16 @@ const Game = require("./game/Game");
 const Player = require("./game/Player");
 
 const whatsappClient = new Client({
-	authStrategy: new LocalAuth({
-		dataPath: "./.wwebjs_auth",
-	}),
-	puppeteer: {
-		headless: true,
-		args: [
-			"--no-sandbox",
-			"--disable-setuid-sandbox",
-			"--disable-dev-shm-usage",
-		],
-	},
+	authStrategy: new LocalAuth(),
 });
 
 whatsappClient.initialize();
 
-whatsappClient.on("qr", (qr) => {
-	console.log("Scan this QR code:");
-	qrcode.generate(qr, { small: true });
-});
-
-whatsappClient.on("ready", () => {
-	console.log("WhatsApp Client is ready!");
-});
+whatsappClient.on("qr", (qr) => qrcode.generate(qr, { small: true }));
+whatsappClient.on("ready", () => console.log("WhatsApp Client is ready!"));
 
 const game = new Game("whatsapp-group");
-const playersMap = {};
+const playersMap = {}; // senderId -> Player object
 
 async function broadcastToGroup(chat, message) {
 	await chat.sendMessage(message);
@@ -47,13 +31,11 @@ whatsappClient.on("message", async (msg) => {
 
 		const command = msg.body.trim();
 
-		// JOIN
 		if (command.toLowerCase().startsWith("/join")) {
 			if (playersMap[senderId]) {
 				await broadcastToGroup(chat, "You already joined the game!");
 				return;
 			}
-
 			const parts = command.split(" ");
 			let nickname = parts.slice(1).join(" ").trim();
 			if (!nickname) nickname = `Player-${senderId.slice(-4)}`;
@@ -66,25 +48,20 @@ whatsappClient.on("message", async (msg) => {
 			return;
 		}
 
-		// PLAYERS
 		if (command === "/players") {
 			if (game.players.length === 0) {
 				await broadcastToGroup(chat, "No players in the game yet.");
 				return;
 			}
 
-			let text = "Current players:\n";
+			let text = "Current players in the game:\n";
 			game.players.forEach((p, index) => {
-				text += `${index + 1}. ${p.name} - ${p.balance}$ ${
-					p.folded ? "(folded)" : ""
-				}\n`;
+				text += `${index + 1}. ${p.name} - ${p.balance}$${p.folded ? " (folded)" : ""}\n`;
 			});
-
 			await broadcastToGroup(chat, text);
 			return;
 		}
 
-		// MUST JOIN FIRST
 		if (!playersMap[senderId]) {
 			await whatsappClient.sendMessage(
 				senderId,
@@ -95,19 +72,17 @@ whatsappClient.on("message", async (msg) => {
 
 		const player = playersMap[senderId];
 
-		// START
 		if (command === "/start") {
 			if (game.status === "playing") {
 				await broadcastToGroup(chat, "Game already started!");
 				return;
 			}
 			if (game.players.length < 2) {
-				await broadcastToGroup(chat, "Need at least 2 players!");
+				await broadcastToGroup(chat, "Need at least 2 players to start!");
 				return;
 			}
 
 			game.startRound();
-
 			await broadcastToGroup(
 				chat,
 				`Game started! Starter: ${game.getCurrentPlayer().name}`,
@@ -120,14 +95,46 @@ whatsappClient.on("message", async (msg) => {
 			return;
 		}
 
-		// HAND
+		if (command === "/stop") {
+			const result = game.voteStop(senderId);
+			await broadcastToGroup(chat, result.message);
+			return;
+		}
+
+		if (command === "/leave") {
+			const leavingPlayer = game.removePlayer(senderId);
+			delete playersMap[senderId];
+
+			if (leavingPlayer) {
+				await broadcastToGroup(chat, `${leavingPlayer.name} left the game.`);
+			}
+
+			if (game.status === "finished") {
+				if (game.startNextRound()) {
+					await broadcastToGroup(
+						chat,
+						`New round started! Starter: ${game.getCurrentPlayer().name}`,
+					);
+					for (const p of game.players) {
+						const handText = p.hand.map((c) => c.rank + c.suit).join(", ");
+						await whatsappClient.sendMessage(
+							p.id,
+							`Your new hand: ${handText}`,
+						);
+					}
+				} else {
+					await broadcastToGroup(chat, "Game over!");
+				}
+			}
+			return;
+		}
+
 		if (command === "/hand") {
 			const hand = player.hand.map((c) => c.rank + c.suit).join(", ");
 			await whatsappClient.sendMessage(senderId, `Your hand: ${hand}`);
 			return;
 		}
 
-		// BALANCE
 		if (command === "/balance") {
 			await whatsappClient.sendMessage(
 				senderId,
@@ -136,7 +143,6 @@ whatsappClient.on("message", async (msg) => {
 			return;
 		}
 
-		// GAME ACTIONS
 		const response = game.handleCommand(senderId, command);
 
 		if (
@@ -145,7 +151,6 @@ whatsappClient.on("message", async (msg) => {
 			await broadcastToGroup(chat, response);
 		}
 
-		// ROUND END
 		if (game.status === "finished") {
 			if (game.startNextRound()) {
 				await broadcastToGroup(
