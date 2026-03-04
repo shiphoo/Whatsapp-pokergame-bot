@@ -21,7 +21,7 @@ whatsappClient.initialize();
 
 whatsappClient.on("qr", (qr) => {
 	console.log("Scan this QR code:");
-	qrcode.generate(qr, { small: true });
+	qrcode.generate(qr, { small: false });
 });
 
 whatsappClient.on("ready", () => {
