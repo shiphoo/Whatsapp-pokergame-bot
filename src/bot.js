@@ -5,8 +5,16 @@ const Player = require("./game/Player");
 
 const whatsappClient = new Client({
 	authStrategy: new LocalAuth(),
+	puppeteer: {
+		headless: true,
+		args: [
+			"--no-sandbox",
+			"--disable-setuid-sandbox",
+			"--disable-dev-shm-usage",
+			"--disable-gpu",
+		],
+	},
 });
-
 whatsappClient.initialize();
 
 whatsappClient.on("qr", (qr) => qrcode.generate(qr, { small: true }));
