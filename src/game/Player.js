@@ -2,7 +2,7 @@ class Player {
 	constructor(id, name) {
 		this.id = id;
 		this.name = name;
-		this.balance = 50;
+		this.balance = 100;
 		this.hand = [];
 		this.currentBet = 0;
 		this.folded = false;
